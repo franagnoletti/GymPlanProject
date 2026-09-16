@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1C1B1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PT App">
+<title>PT App</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#1C1B1A; --surface:#26251F; --surface2:#302F28; --line:#3D3B33;
+    --text:#F2F0E8; --text-dim:#A8A69B; --text-mute:#75736A;
+    --accent:#A8D93B; --danger:#B84A3E; --radius:10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom)); min-height:100vh;}
+  h1,h2,h3{font-weight:500; margin:0 0 12px;}
+  h1{font-size:20px;} h2{font-size:16px;} h3{font-size:14px; color:var(--text-dim); font-weight:400;}
+  #app{max-width:480px; margin:0 auto; padding:20px 16px 8px;}
+  .card{background:var(--surface); border-radius:var(--radius); padding:16px; margin-bottom:14px;}
+  input, select, textarea{width:100%; background:var(--surface2); border:0.5px solid var(--line); border-radius:8px; color:var(--text); padding:11px; font-size:15px; margin-bottom:10px;}
+  .btn{display:block; width:100%; text-align:center; padding:13px; border-radius:var(--radius); border:0.5px solid var(--line); background:var(--surface2); color:var(--text); font-size:15px; margin-top:8px;}
+  .btn.primary{background:var(--accent); color:#1C1B1A; font-weight:500; border:none;}
+  .btn.danger{background:transparent; color:var(--danger); border:0.5px solid var(--danger);}
+  .btn.ghost{background:transparent; border:0.5px solid var(--line);}
+  .btn:active{transform:scale(0.98);}
+  .list-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:0.5px solid var(--line); cursor:pointer;}
+  .list-row:last-child{border-bottom:none;}
+  .list-row .sub{font-size:12px; color:var(--text-mute);}
+  .chevron{color:var(--text-mute);}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .topbar button{background:none; border:none; color:var(--text-mute); font-size:14px;}
+  .day-tabs{display:flex; gap:6px; margin-bottom:14px; overflow-x:auto;}
+  .day-tab{flex:0 0 auto; padding:8px 14px; border-radius:20px; background:var(--surface); color:var(--text-dim); font-size:13px; border:0.5px solid var(--line); white-space:nowrap;}
+  .day-tab.active{background:var(--accent); color:#1C1B1A; border-color:var(--accent);}
+  .set-row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .set-row input{margin-bottom:0;}
+  .set-row .check{width:38px; height:38px; border-radius:8px; border:0.5px solid var(--line); background:var(--surface2); color:var(--text-mute); flex:0 0 auto;}
+  .set-row .check.on{background:var(--accent); color:#1C1B1A; border-color:var(--accent);}
+  .exercise-block{margin-bottom:18px;}
+  .exercise-block .head{display:flex; justify-content:space-between; margin-bottom:8px; font-size:15px; font-weight:500;}
+  .chart-wrap{background:var(--surface); border-radius:var(--radius); padding:14px; height:200px; margin-bottom:14px;}
+  .empty{text-align:center; padding:30px 10px; color:var(--text-mute); font-size:14px;}
+  .field-inline{display:flex; gap:8px; align-items:center;}
+  .field-inline input{margin-bottom:0;}
+  .ex-edit-row{display:flex; gap:6px; margin-bottom:8px; align-items:center;}
+  .ex-edit-row input{margin-bottom:0;}
+  .ex-edit-row button{background:none; border:none; color:var(--danger); font-size:18px; flex:0 0 auto;}
+  .toast{position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--surface2); border:0.5px solid var(--line); color:var(--text); padding:10px 18px; border-radius:20px; font-size:13px; z-index:30; opacity:0; transition:opacity 0.2s;}
+  .toast.show{opacity:1;}
+  .center-screen{min-height:80vh; display:flex; flex-direction:column; justify-content:center;}
+  .logo{font-size:28px; margin-bottom:6px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* ============ CONFIG ============ */
+const SUPABASE_URL = 'https://ritkdjdmipxgdzhsbhde.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpdGtkamRtaXB4Z2R6aHNiaGRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NzQ2MTIsImV4cCI6MjEwNTE1MDYxMn0.Ko9lGJMOwjXiuCcrXXCIqeN6gmrOo-r4qmMWFgSAbAM';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let state = {
+  session: null,
+  role: null,       // 'pt' | 'client'
+  ptRow: null,
+  clientRow: null,
+  clients: [],       // per PT: lista clienti
+  selectedClientId: null,
+  selectedClientPlan: null,
+  selectedClientSessions: [],
+  plan: null,        // per client: il proprio piano
+  sessions: [],      // per client: le proprie sessioni
+  activeDayIdx: 0,
+  activeEntries: {}, // log in corso per la sessione odierna (client)
+};
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ return new Date(d).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'}); }
+function uid(){ return 'ex_' + Math.random().toString(36).slice(2,9); }
+
+/* ============ AUTH ============ */
+
+async function init(){
+  const { data: { session } } = await sb.auth.getSession();
+  state.session = session;
+  sb.auth.onAuthStateChange((_event, sess)=>{
+    state.session = sess;
+    resolveRoleAndRender();
+  });
+  await resolveRoleAndRender();
+}
+
+async function resolveRoleAndRender(){
+  if(!state.session){ state.role = null; render(); return; }
+  const userId = state.session.user.id;
+  const email = state.session.user.email;
+
+  const { data: pt } = await sb.from('pts').select('*').eq('id', userId).maybeSingle();
+  if(pt){
+    state.role = 'pt'; state.ptRow = pt;
+    await loadPtClients();
+    render();
+    return;
+  }
+  const { data: client } = await sb.from('clients').select('*').eq('user_id', userId).maybeSingle();
+  if(client){
+    state.role = 'client'; state.clientRow = client;
+    await loadClientData();
+    render();
+    return;
+  }
+  // nessun ruolo assegnato: prova ad agganciare un invito pendente per email
+  const { data: pendingInvite } = await sb.from('clients').select('*').eq('email', email).is('user_id', null).maybeSingle();
+  state.pendingInvite = pendingInvite || null;
+  state.role = 'unassigned';
+  render();
+}
+
+window.sendMagicLink = async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email){ showToast('Inserisci un\'email valida'); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+  if(error){ showToast('Errore: ' + error.message); return; }
+  openMagicLinkSent(email);
+};
+
+function openMagicLinkSent(email){
+  document.getElementById('app').innerHTML = `
+    <div class="center-screen">
+      <div class="logo">💪</div>
+      <h1>Controlla la tua email</h1>
+      <p style="color:var(--text-dim); margin-bottom:16px;">Ti abbiamo inviato un link di accesso a <b>${email}</b>. Aprilo da questo stesso dispositivo per entrare.</p>
+      <button class="btn ghost" onclick="render()">Torna indietro</button>
+    </div>`;
+}
+
+window.becomePt = async ()=>{
+  const name = document.getElementById('ptName').value.trim();
+  if(!name){ showToast('Inserisci il tuo nome'); return; }
+  const { error } = await sb.from('pts').insert({ id: state.session.user.id, name, email: state.session.user.email });
+  if(error){ showToast('Errore: ' + error.message); return; }
+  await resolveRoleAndRender();
+};
+
+window.claimClientInvite = async ()=>{
+  const invite = state.pendingInvite;
+  const { error } = await sb.from('clients').update({ user_id: state.session.user.id }).eq('id', invite.id);
+  if(error){ showToast('Errore: ' + error.message); return; }
+  await resolveRoleAndRender();
+};
+
+window.logout = async ()=>{
+  await sb.auth.signOut();
+  state = { session:null, role:null, clients:[], activeEntries:{} };
+  render();
+};
+
+/* ============ PT: DATI ============ */
+
+async function loadPtClients(){
+  const { data } = await sb.from('clients').select('*').eq('pt_id', state.ptRow.id).order('created_at', {ascending:false});
+  state.clients = data || [];
+}
+
+window.addClient = async ()=>{
+  const name = document.getElementById('newClientName').value.trim();
+  const email = document.getElementById('newClientEmail').value.trim();
+  if(!name || !email){ showToast('Nome ed email sono obbligatori'); return; }
+  const { error } = await sb.from('clients').insert({ pt_id: state.ptRow.id, name, email });
+  if(error){ showToast('Errore: ' + error.message); return; }
+  showToast('Cliente aggiunto. Condividi con lui questo stesso link: si registrerà con la stessa email.');
+  await loadPtClients();
+  render();
+};
+
+window.openClientDetail = async (clientId)=>{
+  state.selectedClientId = clientId;
+  const { data: plan } = await sb.from('plans').select('*').eq('client_id', clientId).maybeSingle();
+  state.selectedClientPlan = plan || { client_id: clientId, days: [] };
+  const { data: sessions } = await sb.from('sessions').select('*').eq('client_id', clientId).order('date', {ascending:true});
+  state.selectedClientSessions = sessions || [];
+  render('ptClientDetail');
+};
+
+window.addPlanDay = ()=>{
+  state.selectedClientPlan.days.push({ id: uid(), label: 'Nuovo giorno', exercises: [] });
+  render('ptClientDetail');
+};
+window.removePlanDay = (dayId)=>{
+  state.selectedClientPlan.days = state.selectedClientPlan.days.filter(d=>d.id!==dayId);
+  render('ptClientDetail');
+};
+window.updateDayLabel = (dayId, val)=>{
+  const day = state.selectedClientPlan.days.find(d=>d.id===dayId);
+  if(day) day.label = val;
+};
+window.addExercise = (dayId)=>{
+  const day = state.selectedClientPlan.days.find(d=>d.id===dayId);
+  day.exercises.push({ id: uid(), name:'', sets:3, reps:'10', rest:60 });
+  render('ptClientDetail');
+};
+window.removeExercise = (dayId, exId)=>{
+  const day = state.selectedClientPlan.days.find(d=>d.id===dayId);
+  day.exercises = day.exercises.filter(e=>e.id!==exId);
+  render('ptClientDetail');
+};
+window.updateExerciseField = (dayId, exId, field, val)=>{
+  const day = state.selectedClientPlan.days.find(d=>d.id===dayId);
+  const ex = day.exercises.find(e=>e.id===exId);
+  ex[field] = (field==='sets'||field==='rest') ? parseInt(val)||0 : val;
+};
+
+window.savePlan = async ()=>{
+  const plan = state.selectedClientPlan;
+  const { error } = await sb.from('plans').upsert({ client_id: plan.client_id, days: plan.days, updated_at: new Date().toISOString() }, { onConflict:'client_id' });
+  if(error){ showToast('Errore salvataggio: ' + error.message); return; }
+  showToast('Piano salvato');
+};
+
+/* ============ CLIENT: DATI ============ */
+
+async function loadClientData(){
+  const { data: plan } = await sb.from('plans').select('*').eq('client_id', state.clientRow.id).maybeSingle();
+  state.plan = plan || { client_id: state.clientRow.id, days: [] };
+  const { data: sessions } = await sb.from('sessions').select('*').eq('client_id', state.clientRow.id).order('date', {ascending:true});
+  state.sessions = sessions || [];
+}
+
+window.selectDay = (idx)=>{
+  state.activeDayIdx = idx;
+  state.activeEntries = {};
+  render();
+};
+
+window.updateEntry = (exId, idx, field, val)=>{
+  if(!state.activeEntries[exId]) state.activeEntries[exId] = [];
+  while(state.activeEntries[exId].length <= idx) state.activeEntries[exId].push({w:'',r:'',done:false});
+  state.activeEntries[exId][idx][field] = val;
+};
+window.toggleEntryDone = (exId, idx)=>{
+  if(!state.activeEntries[exId]) state.activeEntries[exId] = [];
+  while(state.activeEntries[exId].length <= idx) state.activeEntries[exId].push({w:'',r:'',done:false});
+  state.activeEntries[exId][idx].done = !state.activeEntries[exId][idx].done;
+  render();
+};
+
+window.saveSession = async ()=>{
+  const hasData = Object.values(state.activeEntries).some(arr=>arr.some(s=>s.w||s.r));
+  if(!hasData){ showToast('Segna almeno una serie'); return; }
+  const day = state.plan.days[state.activeDayIdx];
+  const { error } = await sb.from('sessions').insert({
+    client_id: state.clientRow.id, date: todayISO(), day_label: day.label, entries: state.activeEntries
+  });
+  if(error){ showToast('Errore: ' + error.message); return; }
+  showToast('Sessione salvata');
+  state.activeEntries = {};
+  await loadClientData();
+  render();
+};
+
+/* ============ RENDER ============ */
+
+let chartInstances = {};
+
+function render(forceView){
+  const app = document.getElementById('app');
+  if(!state.session){ app.innerHTML = renderLogin(); return; }
+  if(state.role === 'unassigned'){ app.innerHTML = renderRolePicker(); return; }
+  if(state.role === 'pt'){
+    app.innerHTML = forceView==='ptClientDetail' ? renderPtClientDetail() : renderPtDashboard();
+    setTimeout(initPtCharts, 30);
+    return;
+  }
+  if(state.role === 'client'){
+    app.innerHTML = renderClientView();
+    setTimeout(initClientChart, 30);
+    return;
+  }
+}
+
+function renderLogin(){
+  return `
+    <div class="center-screen">
+      <div class="logo">💪</div>
+      <h1>Accedi</h1>
+      <p style="color:var(--text-dim); margin-bottom:16px;">Inserisci la tua email: ti mandiamo un link, niente password.</p>
+      <input type="email" id="loginEmail" placeholder="la-tua-email@esempio.com">
+      <button class="btn primary" onclick="sendMagicLink()">Invia link di accesso</button>
+    </div>`;
+}
+
+function renderRolePicker(){
+  if(state.pendingInvite){
+    return `
+      <div class="center-screen">
+        <h1>Benvenuto</h1>
+        <p style="color:var(--text-dim); margin-bottom:16px;">Il tuo trainer ti ha invitato come cliente (${state.pendingInvite.name}).</p>
+        <button class="btn primary" onclick="claimClientInvite()">Accedi come cliente</button>
+        <button class="btn ghost" onclick="logout()" style="margin-top:20px;">Esci</button>
+      </div>`;
+  }
+  return `
+    <div class="center-screen">
+      <h1>Chi sei?</h1>
+      <p style="color:var(--text-dim); margin-bottom:16px;">Nessun invito trovato per questa email. Se sei un personal trainer, registrati qui sotto.</p>
+      <input type="text" id="ptName" placeholder="Il tuo nome">
+      <button class="btn primary" onclick="becomePt()">Sono un Personal Trainer</button>
+      <p style="color:var(--text-mute); font-size:12px; margin-top:16px;">Se sei un cliente, chiedi al tuo PT di aggiungerti con questa stessa email, poi ricarica la pagina.</p>
+      <button class="btn ghost" onclick="logout()" style="margin-top:10px;">Esci</button>
+    </div>`;
+}
+
+/* ---- PT views ---- */
+
+function renderPtDashboard(){
+  const rows = state.clients.map(c=>`
+    <div class="list-row" onclick="openClientDetail('${c.id}')">
+      <div><div>${c.name}</div><div class="sub">${c.email}${c.user_id ? '' : ' · in attesa che si registri'}</div></div>
+      <span class="chevron">›</span>
+    </div>`).join('') || `<div class="empty">Nessun cliente ancora.</div>`;
+
+  return `
+    <div class="topbar"><h1>I tuoi clienti</h1><button onclick="logout()">Esci</button></div>
+    <div class="card">${rows}</div>
+    <h2>Aggiungi cliente</h2>
+    <div class="card">
+      <input type="text" id="newClientName" placeholder="Nome cliente">
+      <input type="email" id="newClientEmail" placeholder="Email cliente">
+      <button class="btn primary" onclick="addClient()">Aggiungi</button>
+      <p style="color:var(--text-mute); font-size:12px; margin-top:8px;">Il cliente dovrà accedere a questo stesso link con la stessa email per vedere il suo piano.</p>
+    </div>
+  `;
+}
+
+function renderPtClientDetail(){
+  const client = state.clients.find(c=>c.id===state.selectedClientId);
+  const plan = state.selectedClientPlan;
+  const daysHtml = plan.days.map(day=>`
+    <div class="card">
+      <div class="field-inline" style="margin-bottom:10px;">
+        <input type="text" value="${day.label}" onchange="updateDayLabel('${day.id}', this.value)" style="margin-bottom:0;">
+        <button onclick="removePlanDay('${day.id}')" style="background:none;border:none;color:var(--danger);font-size:18px;">×</button>
+      </div>
+      ${day.exercises.map(ex=>`
+        <div class="ex-edit-row">
+          <input type="text" placeholder="Esercizio" value="${ex.name}" onchange="updateExerciseField('${day.id}','${ex.id}','name',this.value)" style="flex:2;">
+          <input type="number" placeholder="serie" value="${ex.sets}" onchange="updateExerciseField('${day.id}','${ex.id}','sets',this.value)" style="flex:1;">
+          <input type="text" placeholder="rep" value="${ex.reps}" onchange="updateExerciseField('${day.id}','${ex.id}','reps',this.value)" style="flex:1;">
+          <button onclick="removeExercise('${day.id}','${ex.id}')">×</button>
+        </div>`).join('')}
+      <button class="btn ghost" onclick="addExercise('${day.id}')">+ Esercizio</button>
+    </div>
+  `).join('');
+
+  const exerciseNames = [...new Set(plan.days.flatMap(d=>d.exercises.map(e=>e.name)).filter(Boolean))];
+  const chartSelect = exerciseNames.length ? `
+    <h2>Progressi cliente</h2>
+    <select id="ptChartExSelect" onchange="renderPtChart(this.value)">
+      ${exerciseNames.map(n=>`<option value="${n}">${n}</option>`).join('')}
+    </select>
+    <div class="chart-wrap"><canvas id="ptProgressChart"></canvas></div>
+  ` : '';
+
+  return `
+    <div class="topbar"><button onclick="render()">‹ Clienti</button><h1 style="font-size:16px;">${client.name}</h1><span></span></div>
+    <h2>Scheda</h2>
+    ${daysHtml}
+    <button class="btn ghost" onclick="addPlanDay()">+ Aggiungi giorno</button>
+    <button class="btn primary" onclick="savePlan()">Salva scheda</button>
+    ${chartSelect}
+  `;
+}
+
+window.renderPtChart = (exName)=>{
+  const hist = [];
+  state.selectedClientSessions.forEach(s=>{
+    Object.entries(s.entries||{}).forEach(([exId, sets])=>{
+      // match by name: cerchiamo l'esercizio nel piano corrente per nome
+      const dayMatch = state.selectedClientPlan.days.find(d=>d.exercises.some(e=>e.id===exId && e.name===exName));
+      if(dayMatch){
+        const maxW = Math.max(0, ...sets.filter(x=>x.done).map(x=>parseFloat(x.w)||0));
+        if(maxW>0) hist.push({date:s.date, w:maxW});
+      }
+    });
+  });
+  const canvas = document.getElementById('ptProgressChart');
+  if(!canvas) return;
+  if(chartInstances.pt) chartInstances.pt.destroy();
+  chartInstances.pt = new Chart(canvas, {
+    type:'line',
+    data:{ labels: hist.map(h=>fmtDate(h.date)), datasets:[{ data:hist.map(h=>h.w), borderColor:'#A8D93B', backgroundColor:'rgba(168,217,59,0.15)', fill:true, tension:0.25 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{color:'#A8A69B'}, grid:{color:'#3D3B33'}}, y:{ticks:{color:'#A8A69B'}, grid:{color:'#3D3B33'}} } }
+  });
+};
+function initPtCharts(){
+  const sel = document.getElementById('ptChartExSelect');
+  if(sel) renderPtChart(sel.value);
+}
+
+/* ---- Client view ---- */
+
+function renderClientView(){
+  if(!state.plan.days.length){
+    return `
+      <div class="topbar"><h1>Ciao ${state.clientRow.name}</h1><button onclick="logout()">Esci</button></div>
+      <div class="empty">Il tuo trainer non ha ancora caricato una scheda.</div>`;
+  }
+  const day = state.plan.days[state.activeDayIdx];
+  const tabs = state.plan.days.map((d,i)=>`<button class="day-tab ${i===state.activeDayIdx?'active':''}" onclick="selectDay(${i})">${d.label}</button>`).join('');
+
+  const blocks = day.exercises.map(ex=>{
+    const entry = state.activeEntries[ex.id] || [];
+    let rows = '';
+    for(let i=0;i<ex.sets;i++){
+      const set = entry[i] || {w:'',r:'',done:false};
+      rows += `
+        <div class="set-row">
+          <input type="number" placeholder="kg" value="${set.w}" onchange="updateEntry('${ex.id}',${i},'w',this.value)">
+          <span style="color:var(--text-mute);">x</span>
+          <input type="number" placeholder="rep" value="${set.r}" onchange="updateEntry('${ex.id}',${i},'r',this.value)">
+          <button class="check ${set.done?'on':''}" onclick="toggleEntryDone('${ex.id}',${i})">${set.done?'✓':''}</button>
+        </div>`;
+    }
+    return `<div class="exercise-block"><div class="head"><span>${ex.name}</span><span style="color:var(--text-mute); font-size:12px;">${ex.reps}</span></div>${rows}</div>`;
+  }).join('');
+
+  const exerciseNames = [...new Set(state.plan.days.flatMap(d=>d.exercises.map(e=>e.name)).filter(Boolean))];
+  const chartSelect = exerciseNames.length ? `
+    <h2>I tuoi progressi</h2>
+    <select id="clientChartExSelect" onchange="renderClientChart(this.value)">
+      ${exerciseNames.map(n=>`<option value="${n}">${n}</option>`).join('')}
+    </select>
+    <div class="chart-wrap"><canvas id="clientProgressChart"></canvas></div>
+  ` : '';
+
+  return `
+    <div class="topbar"><h1>Ciao ${state.clientRow.name}</h1><button onclick="logout()">Esci</button></div>
+    <div class="day-tabs">${tabs}</div>
+    ${blocks}
+    <button class="btn primary" onclick="saveSession()">Salva sessione</button>
+    ${chartSelect}
+  `;
+}
+
+window.renderClientChart = (exName)=>{
+  const hist = [];
+  state.sessions.forEach(s=>{
+    Object.entries(s.entries||{}).forEach(([exId, sets])=>{
+      const dayMatch = state.plan.days.find(d=>d.exercises.some(e=>e.id===exId && e.name===exName));
+      if(dayMatch){
+        const maxW = Math.max(0, ...sets.filter(x=>x.done).map(x=>parseFloat(x.w)||0));
+        if(maxW>0) hist.push({date:s.date, w:maxW});
+      }
+    });
+  });
+  const canvas = document.getElementById('clientProgressChart');
+  if(!canvas) return;
+  if(chartInstances.client) chartInstances.client.destroy();
+  chartInstances.client = new Chart(canvas, {
+    type:'line',
+    data:{ labels: hist.map(h=>fmtDate(h.date)), datasets:[{ data:hist.map(h=>h.w), borderColor:'#A8D93B', backgroundColor:'rgba(168,217,59,0.15)', fill:true, tension:0.25 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{color:'#A8A69B'}, grid:{color:'#3D3B33'}}, y:{ticks:{color:'#A8A69B'}, grid:{color:'#3D3B33'}} } }
+  });
+};
+function initClientChart(){
+  const sel = document.getElementById('clientChartExSelect');
+  if(sel) renderClientChart(sel.value);
+}
+
+init();
+</script>
+</body>
+</html>
